@@ -1,0 +1,24 @@
+{
+  "name": "@decthings/model",
+  "version": "0.0.1",
+  "description": "Create a Decthings model using JavaScript/TypeScript",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepack": "rm -rf ./dist && tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/decthings/model-js.git"
+  },
+  "author": "Decthings",
+  "license": "MIT",
+  "dependencies": {
+    "@decthings/api-client": "^0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12"
+  },
+  "bin": {
+    "decthings-model-node": "dist/run/index.js"
+  }
+}
