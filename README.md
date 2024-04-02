@@ -2,7 +2,7 @@
 
 ## Decthings model using JavaScript
 
-[![npm version](https://badge.fury.io/js/@decthings%2Fmodel.svg)](https://badge.fury.io/js/@decthings%2Fmodel.svg)
+[![npm version](https://badge.fury.io/js/@decthings%2Fmodel.svg)](https://www.npmjs.com/package/@decthings/model)
 
 Use JavaScript/TypeScript to create a Decthings model.
 
