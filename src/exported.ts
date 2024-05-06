@@ -34,13 +34,26 @@ export interface TrainTrackerBinary {
 }
 
 export interface ModelBinary {
-    createModelState(params: Map<string, DataLoaderBinary>, provider: StateProvider, otherModels: Map<string, Map<string, StateLoader>>): Promise<void> | void
-    instantiateModel(state: Map<string, StateLoader>): Promise<InstantiatedModelBinary> | InstantiatedModelBinary
+    createModelState(options: {
+        params: Map<string, DataLoaderBinary>
+        stateProvider: StateProvider
+        otherModels: Map<
+            string,
+            {
+                mountPath: string
+                state: Map<string, StateLoader>
+            }
+        >
+    }): Promise<void> | void
+    instantiateModel(options: {
+        state: Map<string, StateLoader>
+        otherModels: Map<string, { mountPath: string }>
+    }): Promise<InstantiatedModelBinary> | InstantiatedModelBinary
 }
 
 export interface InstantiatedModelBinary {
-    train(params: Map<string, DataLoaderBinary>, tracker: TrainTrackerBinary): Promise<void> | void
-    evaluate(params: Map<string, DataLoaderBinary>): Promise<{ name: string; data: Buffer[] }[]> | { name: string; data: Buffer[] }[]
-    getModelState(provider: StateProvider): Promise<void> | void
+    train(options: { params: Map<string, DataLoaderBinary>; tracker: TrainTrackerBinary }): Promise<void> | void
+    evaluate(options: { params: Map<string, DataLoaderBinary> }): Promise<{ name: string; data: Buffer[] }[]> | { name: string; data: Buffer[] }[]
+    getModelState(options: { stateProvider: StateProvider }): Promise<void> | void
     dispose(): void
 }

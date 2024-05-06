@@ -6,9 +6,22 @@ import { DataLoaderBinary, ModelBinary, StateLoader, StateProvider } from '../ex
 export * from './dataloader'
 export * from './traintracker'
 
-export type CreateModelStateFn = (params: Map<string, DataLoader>, provider: StateProvider) => Promise<void> | void
+export type CreateModelStateFn = (options: {
+    params: Map<string, DataLoader>
+    stateProvider: StateProvider
+    otherModels: Map<
+        string,
+        {
+            mountPath: string
+            state: Map<string, StateLoader>
+        }
+    >
+}) => Promise<void> | void
 
-export type InstantiateModelFn = (state: Map<string, StateLoader>) => Promise<InstantiatedModel> | InstantiatedModel
+export type InstantiateModelFn = (options: {
+    state: Map<string, StateLoader>
+    otherModels: Map<string, { mountPath: string }>
+}) => Promise<InstantiatedModel> | InstantiatedModel
 
 /**
  * This is the main entry point for a Decthings model. An object or class implementing this interface should be used as
@@ -20,8 +33,8 @@ export interface Model {
      * *params* argument. A model state is some binary data which later can be used in evaluate and train. For example,
      * for a neural network, the createModelState should generate a new randomized set of weights and biases.
      *
-     * Use the *params* argument to read user-provided configuration parameters, and the *provider* argument to export
-     * the state data.
+     * Use the *params* argument to read user-provided configuration parameters, and the *stateProvider* argument to
+     * export the state data.
      */
     createModelState: CreateModelStateFn
 
@@ -35,11 +48,13 @@ export interface Model {
     instantiateModel: InstantiateModelFn
 }
 
-export type TrainFn = (params: Map<string, DataLoader>, tracker: TrainTracker) => Promise<void> | void
+export type TrainFn = (options: { params: Map<string, DataLoader>; tracker: TrainTracker }) => Promise<void> | void
 
-export type EvaluateFn = (params: Map<string, DataLoader>) => Promise<{ name: string; data: DecthingsTensor[] }[]> | { name: string; data: DecthingsTensor[] }[]
+export type EvaluateFn = (options: {
+    params: Map<string, DataLoader>
+}) => Promise<{ name: string; data: DecthingsTensor[] }[]> | { name: string; data: DecthingsTensor[] }[]
 
-export type GetModelStateFn = (provider: StateProvider) => Promise<void> | void
+export type GetModelStateFn = (options: { stateProvider: StateProvider }) => Promise<void> | void
 
 export interface InstantiatedModel {
     /**
@@ -92,10 +107,10 @@ function createDataLoaderMap(params: Map<string, DataLoaderBinary>): Map<string,
  * import * as decthings from '@decthings/model'
  *
  * export default decthings.makeModel({
- *     createModelState: async (params, provider) => {
+ *     createModelState: async (options) => {
  *         ....
  *     },
- *     instantiateModel: async (state) => {
+ *     instantiateModel: async (options) => {
  *         ...
  *     }
  * })
@@ -103,23 +118,23 @@ function createDataLoaderMap(params: Map<string, DataLoaderBinary>): Map<string,
  */
 export function makeModel(model: Model): ModelBinary {
     return {
-        createModelState: (params, provider) => {
+        createModelState: ({ params, stateProvider, otherModels }) => {
             if (!('createModelState' in model)) {
                 throw new Error('The function "instantiateModel" was missing from the model.')
             }
             if (typeof model.createModelState !== 'function') {
                 throw new Error(`The property "createModelState" on the model was not a function - found ${typeof model.createModelState}`)
             }
-            return model.createModelState(createDataLoaderMap(params), provider)
+            return model.createModelState({ params: createDataLoaderMap(params), stateProvider, otherModels })
         },
-        instantiateModel: async (state) => {
+        instantiateModel: async (options) => {
             if (!('instantiateModel' in model)) {
                 throw new Error('The function "instantiateModel" was missing from the model.')
             }
             if (typeof model.instantiateModel !== 'function') {
                 throw new Error(`The property "instantiateModel" on the model was not a function - found ${typeof model.instantiateModel}`)
             }
-            const instantiated = await model.instantiateModel(state)
+            const instantiated = await model.instantiateModel(options)
             if (instantiated === null || typeof instantiated !== 'object') {
                 throw new Error(
                     `Instantiate model: Expected return type of "instantiateModel" to be an object or class instance, not ${
@@ -128,14 +143,14 @@ export function makeModel(model: Model): ModelBinary {
                 )
             }
             return {
-                evaluate: async (params) => {
+                evaluate: async ({ params }) => {
                     if (!('evaluate' in instantiated)) {
                         throw new Error('The function "evaluate" was missing from the instantiated model.')
                     }
                     if (typeof instantiated.evaluate !== 'function') {
                         throw new Error(`The property "evaluate" on the instantiated model was not a function - found ${typeof instantiated.evaluate}`)
                     }
-                    const res = await instantiated.evaluate(createDataLoaderMap(params))
+                    const res = await instantiated.evaluate({ params: createDataLoaderMap(params) })
                     if (!Array.isArray(res)) {
                         throw new Error(`Evaluate: Expected return value of "evaluate" to be an array.`)
                     }
@@ -175,7 +190,7 @@ export function makeModel(model: Model): ModelBinary {
                     }
                     return instantiated.dispose()
                 },
-                getModelState: (provider) => {
+                getModelState: (options) => {
                     if (!('getModelState' in instantiated)) {
                         throw new Error('The function "getModelState" was missing from the instantiated model.')
                     }
@@ -184,16 +199,16 @@ export function makeModel(model: Model): ModelBinary {
                             `The property "getModelState" on the instantiated model was not a function - found ${typeof instantiated.getModelState}`
                         )
                     }
-                    return instantiated.getModelState(provider)
+                    return instantiated.getModelState(options)
                 },
-                train: (params, tracker) => {
+                train: ({ params, tracker }) => {
                     if (!('train' in instantiated)) {
                         throw new Error('The function "train" was missing from the instantiated model.')
                     }
                     if (typeof instantiated.train !== 'function') {
                         throw new Error(`The property "train" on the instantiated model was not a function - found ${typeof instantiated.train}`)
                     }
-                    return instantiated.train(createDataLoaderMap(params), new TrainTracker(tracker))
+                    return instantiated.train({ params: createDataLoaderMap(params), tracker: new TrainTracker(tracker) })
                 }
             }
         }

@@ -61,13 +61,19 @@ const rpc: {
     },
     async callCreateModelState(args) {
         const complete = { complete: false }
-        const map = createDataLoaderMap(complete, args.params, sendDataEventToParent)
-        const provider = createStateProvider(complete, args.id, sendEventToParent)
-        const otherModelStates = new Map(
-            args.otherModelStates.map((otherModelState) => [otherModelState.id, createStateLoaderMap(complete, otherModelState.state, sendDataEventToParent)])
+        const params = createDataLoaderMap(complete, args.params, sendDataEventToParent)
+        const stateProvider = createStateProvider(complete, args.id, sendEventToParent)
+        const otherModels = new Map(
+            args.otherModels.map((otherModel) => [
+                otherModel.id,
+                {
+                    mountPath: otherModel.mountPath,
+                    state: createStateLoaderMap(complete, otherModel.state, sendDataEventToParent)
+                }
+            ])
         )
         try {
-            await exportedModel.createModelState(map, provider, otherModelStates)
+            await exportedModel.createModelState({ params, stateProvider, otherModels })
             complete.complete = true
             return { result: {} }
         } catch (e) {
@@ -102,7 +108,10 @@ const rpc: {
                         exportedModel.instantiateModel === null ? 'null' : typeof exportedModel.instantiateModel
                     }`
                 }
-                instantiated = await exportedModel.instantiateModel(stateLoader)
+                instantiated = await exportedModel.instantiateModel({
+                    state: stateLoader,
+                    otherModels: new Map(args.otherModels.map((x) => [x.id, { mountPath: x.mountPath }]))
+                })
                 complete.complete = true
                 if (instantiated === null || typeof instantiated !== 'object') {
                     throw `InstantiateModel: Expected return value of "instantiateModel" to be of type object, got: ${instantiated === null ? 'null' : typeof instantiated}`
@@ -149,14 +158,14 @@ const rpc: {
             return { result: { error: { code: 'instantiated_model_not_found' } } }
         }
         const complete = { complete: false }
-        const map = createDataLoaderMap(complete, args.params, sendDataEventToParent)
+        const params = createDataLoaderMap(complete, args.params, sendDataEventToParent)
         try {
             if (typeof instantiated.train !== 'function') {
                 throw `Train: Failed to call train on the instantiated model. Expected the property "train" to be a function, but got ${
                     instantiated.train === null ? 'null' : typeof instantiated.train
                 }`
             }
-            await instantiated.train(map, tracker)
+            await instantiated.train({ params, tracker })
             tracker._complete = true
             complete.complete = true
         } catch (e) {
@@ -187,7 +196,7 @@ const rpc: {
             return { result: { error: { code: 'instantiated_model_not_found' } } }
         }
         const complete = { complete: false }
-        const map = createDataLoaderMap(complete, args.params, sendDataEventToParent)
+        const params = createDataLoaderMap(complete, args.params, sendDataEventToParent)
         let result: { name: string; data: Buffer[] }[]
         try {
             if (typeof instantiated.evaluate !== 'function') {
@@ -195,7 +204,7 @@ const rpc: {
                     instantiated.evaluate === null ? 'null' : typeof instantiated.evaluate
                 }`
             }
-            result = await instantiated.evaluate(map)
+            result = await instantiated.evaluate({ params })
             complete.complete = true
             if (!Array.isArray(result)) {
                 throw `Evaluate: Expected return value of "evaluate" to be an array.`
@@ -242,7 +251,7 @@ const rpc: {
         }
 
         const complete = { complete: false }
-        const provider = createStateProvider(complete, args.id, sendEventToParent)
+        const stateProvider = createStateProvider(complete, args.id, sendEventToParent)
 
         try {
             if (typeof instantiated.getModelState !== 'function') {
@@ -250,7 +259,7 @@ const rpc: {
                     instantiated.getModelState === null ? 'null' : typeof instantiated.getModelState
                 }`
             }
-            await instantiated.getModelState(provider)
+            await instantiated.getModelState({ stateProvider })
             complete.complete = true
         } catch (e) {
             return { result: { error: getErrorFromException(e) } }

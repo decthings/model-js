@@ -11,13 +11,13 @@ export type Param = {
 
 export interface ChildRpc {
     initialize(args: { path: string }): Promise<null>
-    callCreateModelState(args: { id: string; params: Param[]; otherModelStates: { id: string; state: Param[] }[] }): Promise<{
+    callCreateModelState(args: { id: string; params: Param[]; otherModels: { id: string; mountPath: string; state: Param[] }[] }): Promise<{
         error?: {
             code: 'exception'
             details?: string
         }
     }>
-    callInstantiateModel(args: { id: string; instantiatedModelId: string; state: Param[] }): Promise<{
+    callInstantiateModel(args: { id: string; instantiatedModelId: string; state: Param[]; otherModels: { id: string; mountPath: string }[] }): Promise<{
         error?: {
             code: 'exception'
             details?: string
