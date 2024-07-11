@@ -332,18 +332,18 @@ new Promise(async () => {
         const firstByte = (await readBytesFromHost(1))[0]
         if (firstByte === 0) {
             // RPC
-            const segmentLength = (await readBytesFromHost(8)).readUint32BE(4)
-            const segmentData = await readBytesFromHost(segmentLength)
-            processMessage(segmentData)
+            const blobLength = (await readBytesFromHost(8)).readUint32BE(4)
+            const blobData = await readBytesFromHost(blobLength)
+            processMessage(blobData)
         } else {
             // Provide data
             const requestId = (await readBytesFromHost(4)).readUint32BE()
-            const numSegments = (await readBytesFromHost(4)).readUint32BE()
+            const numBlobs = (await readBytesFromHost(4)).readUint32BE()
             const data: Buffer[] = []
-            for (let i = 0; i < numSegments; i++) {
-                const segmentLength = (await readBytesFromHost(8)).readUint32BE(4)
-                const segmentData = await readBytesFromHost(segmentLength)
-                data.push(segmentData)
+            for (let i = 0; i < numBlobs; i++) {
+                const blobLength = (await readBytesFromHost(8)).readUint32BE(4)
+                const blobData = await readBytesFromHost(blobLength)
+                data.push(blobData)
             }
             onDataProvided(requestId, data)
         }
@@ -359,8 +359,8 @@ function sendMessageToParent(message: Buffer) {
     sock.write(message)
 }
 
-export function sendEventToParent(event: string, params: any, additionalSegments: Buffer[]) {
-    const toSend = [Buffer.from(JSON.stringify({ event, params })), ...additionalSegments]
+export function sendEventToParent(event: string, params: any, blobs: Buffer[]) {
+    const toSend = [Buffer.from(JSON.stringify({ event, params })), ...blobs]
 
     let argsTotalSize = 0
     toSend.forEach((el) => {

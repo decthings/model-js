@@ -187,7 +187,7 @@ export class StateProvider {
 export function createStateProvider(
     complete: { complete: boolean },
     commandId: string,
-    sendEventToParent: (event: string, params: any, additionalSegments: Buffer[]) => void
+    sendEventToParent: (event: string, params: any, blobs: Buffer[]) => void
 ): StateProvider {
     const providedNames = new Set<string>()
     return new StateProvider((data) => {
