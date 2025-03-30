@@ -28,7 +28,7 @@ export class DataLoader implements DataLoaderBinary {
     size(): number {
         return this.#inner.size
     }
-    
+
     shuffle() {
         this.#inner.shuffle([this.#inner.dataset])
     }
@@ -83,7 +83,7 @@ export class DataLoader implements DataLoaderBinary {
     }
 }
 
-export class StateLoader {
+export class WeightsLoader {
     #inner: DataLoader
 
     constructor(inner: DataLoader) {
@@ -150,61 +150,61 @@ export function createDataLoaderMap(
     )
 }
 
-export function createStateLoaderMap(
+export function createWeightsLoaderMap(
     complete: { complete: boolean },
     params: Param[],
     sendDataEventToParent: (event: DataEvent) => void
-): Map<string, StateLoader> {
+): Map<string, WeightsLoader> {
     return new Map(
         params.map(
             (param) =>
-                [param.name, new StateLoader(createDataLoader(complete, param.dataset, param.amount, param.totalByteSize, sendDataEventToParent))] as const
+                [param.name, new WeightsLoader(createDataLoader(complete, param.dataset, param.amount, param.totalByteSize, sendDataEventToParent))] as const
         )
     )
 }
 
-export class StateProvider {
+export class WeightsProvider {
     constructor(private _provide: (data: { key: string; data: Buffer }[]) => void) {}
 
     provideAll(data: { key: string; data: Buffer }[]) {
         if (!Array.isArray(data) || data.some((el) => el === null || typeof el !== 'object' || typeof el.key !== 'string' || !Buffer.isBuffer(el.data))) {
-            throw new Error('StateProvider provide: Expected "data" to be an array of objects like { key: string, data: Buffer }.')
+            throw new Error('WeightsProvider provide: Expected "data" to be an array of objects like { key: string, data: Buffer }.')
         }
         this._provide(data)
     }
 
     provide(key: string, data: Buffer) {
         if (typeof key !== 'string') {
-            throw new Error('StateProvider provide: Expected "key" to be a string.')
+            throw new Error('WeightsProvider provide: Expected "key" to be a string.')
         }
         if (!Buffer.isBuffer(data)) {
-            throw new Error('StateProvider provide: Expected "data" to be a Buffer.')
+            throw new Error('WeightsProvider provide: Expected "data" to be a Buffer.')
         }
         this._provide([{ key, data }])
     }
 }
 
-export function createStateProvider(
+export function createWeightsProvider(
     complete: { complete: boolean },
     commandId: string,
     sendEventToParent: (event: string, params: any, blobs: Buffer[]) => void
-): StateProvider {
+): WeightsProvider {
     const providedNames = new Set<string>()
-    return new StateProvider((data) => {
+    return new WeightsProvider((data) => {
         if (complete.complete) {
-            throw new Error('StateProvider: Cannot provide data after the function was completed.')
+            throw new Error('WeightsProvider: Cannot provide data after the function was completed.')
         }
 
         let duplicate = data.find((el) => providedNames.has(el.key))
         if (duplicate) {
-            throw new Error(`StateProvider: State key "${duplicate.key}" was provided multiple times.`)
+            throw new Error(`WeightsProvider: Weight key "${duplicate.key}" was provided multiple times.`)
         }
 
         if (providedNames.size + data.length > 100) {
-            throw new Error('StateProvider provide: Cannot provide more than 100 keys.')
+            throw new Error('WeightsProvider provide: Cannot provide more than 100 keys.')
         }
         if (data.some((el) => el.data.byteLength > 1024 ** 3)) {
-            throw new Error('StateProvider: Cannot provide more than 1 gigabyte for a single key. Split it into multiple keys.')
+            throw new Error('WeightsProvider: Cannot provide more than 1 gigabyte for a single key. Split it into multiple keys.')
         }
         for (const el of data) {
             providedNames.add(el.key)
@@ -222,7 +222,7 @@ export function createStateProvider(
                 names.push(data[i].key)
                 i++
             }
-            sendEventToParent('provideStateData', { commandId, names }, toSend)
+            sendEventToParent('provideWeightsData', { commandId, names }, toSend)
         }
     })
 }

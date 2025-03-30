@@ -11,13 +11,13 @@ export type Param = {
 
 export interface ChildRpc {
     initialize(args: { path: string }): Promise<null>
-    callCreateModelState(args: { id: string; params: Param[]; otherModels: { id: string; mountPath: string; state: Param[] }[] }): Promise<{
+    callInitializeWeights(args: { id: string; params: Param[]; otherModels: { id: string; mountPath: string; weights: Param[] }[] }): Promise<{
         error?: {
             code: 'exception'
             details?: string
         }
     }>
-    callInstantiateModel(args: { id: string; instantiatedModelId: string; state: Param[]; otherModels: { id: string; mountPath: string }[] }): Promise<{
+    callInstantiateModel(args: { id: string; instantiatedModelId: string; weights: Param[]; otherModels: { id: string; mountPath: string }[] }): Promise<{
         error?: {
             code: 'exception'
             details?: string
@@ -46,7 +46,7 @@ export interface ChildRpc {
               }
         outputs?: { name: string; byteSizes: number[] }[]
     }>
-    callGetModelState(args: { id: string; instantiatedModelId: string }): Promise<{
+    callGetWeights(args: { id: string; instantiatedModelId: string }): Promise<{
         error?:
             | {
                   code: 'exception'

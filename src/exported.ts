@@ -1,15 +1,15 @@
-export interface StateLoader {
+export interface WeightsLoader {
     /**
-     * Get the size of the state data.
+     * Get the size of the weight data.
      */
     byteSize(): number
     /**
-     * Read the state data.
+     * Read the weight data.
      */
     read(): Promise<Buffer>
 }
 
-export interface StateProvider {
+export interface WeightsProvider {
     provideAll(data: { key: string; data: Buffer }[]): void
 
     provide(key: string, data: Buffer): void
@@ -34,19 +34,19 @@ export interface TrainTrackerBinary {
 }
 
 export interface ModelBinary {
-    createModelState(options: {
+    initializeWeights(options: {
         params: Map<string, DataLoaderBinary>
-        stateProvider: StateProvider
+        weightsProvider: WeightsProvider
         otherModels: Map<
             string,
             {
                 mountPath: string
-                state: Map<string, StateLoader>
+                weights: Map<string, WeightsLoader>
             }
         >
     }): Promise<void> | void
     instantiateModel(options: {
-        state: Map<string, StateLoader>
+        weights: Map<string, WeightsLoader>
         otherModels: Map<string, { mountPath: string }>
     }): Promise<InstantiatedModelBinary> | InstantiatedModelBinary
 }
@@ -54,6 +54,6 @@ export interface ModelBinary {
 export interface InstantiatedModelBinary {
     train(options: { params: Map<string, DataLoaderBinary>; tracker: TrainTrackerBinary }): Promise<void> | void
     evaluate(options: { params: Map<string, DataLoaderBinary> }): Promise<{ name: string; data: Buffer[] }[]> | { name: string; data: Buffer[] }[]
-    getModelState(options: { stateProvider: StateProvider }): Promise<void> | void
+    getWeights(options: { weightsProvider: WeightsProvider }): Promise<void> | void
     dispose(): void
 }

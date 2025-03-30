@@ -2,7 +2,7 @@
 
 import * as net from 'net'
 import type { ChildRpc, DataEvent } from './api'
-import { createDataLoaderMap, createStateLoaderMap, createStateProvider, onDataProvided } from './dataloader'
+import { createDataLoaderMap, createWeightsLoaderMap, createWeightsProvider, onDataProvided } from './dataloader'
 import { InstantiatedModelBinary, ModelBinary } from '../exported'
 import { TrainTracker } from './traintracker'
 
@@ -59,21 +59,21 @@ const rpc: {
         sendEventToParent('modelSessionInitialized', {}, [])
         return null
     },
-    async callCreateModelState(args) {
+    async callInitializeWeights(args) {
         const complete = { complete: false }
         const params = createDataLoaderMap(complete, args.params, sendDataEventToParent)
-        const stateProvider = createStateProvider(complete, args.id, sendEventToParent)
+        const weightsProvider = createWeightsProvider(complete, args.id, sendEventToParent)
         const otherModels = new Map(
             args.otherModels.map((otherModel) => [
                 otherModel.id,
                 {
                     mountPath: otherModel.mountPath,
-                    state: createStateLoaderMap(complete, otherModel.state, sendDataEventToParent)
+                    weights: createWeightsLoaderMap(complete, otherModel.weights, sendDataEventToParent)
                 }
             ])
         )
         try {
-            await exportedModel.createModelState({ params, stateProvider, otherModels })
+            await exportedModel.initializeWeights({ params, weightsProvider, otherModels })
             complete.complete = true
             return { result: {} }
         } catch (e) {
@@ -99,7 +99,7 @@ const rpc: {
             instantiatedModels.set(args.instantiatedModelId, stored)
 
             const complete = { complete: false }
-            const stateLoader = createStateLoaderMap(complete, args.state, sendDataEventToParent)
+            const weightsLoader = createWeightsLoaderMap(complete, args.weights, sendDataEventToParent)
 
             let instantiated: InstantiatedModelBinary
             try {
@@ -109,7 +109,7 @@ const rpc: {
                     }`
                 }
                 instantiated = await exportedModel.instantiateModel({
-                    state: stateLoader,
+                    weights: weightsLoader,
                     otherModels: new Map(args.otherModels.map((x) => [x.id, { mountPath: x.mountPath }]))
                 })
                 complete.complete = true
@@ -240,7 +240,7 @@ const rpc: {
             alsoSend: [Buffer.concat(result.flatMap((x) => x.data))]
         }
     },
-    async callGetModelState(args) {
+    async callGetWeights(args) {
         const instantiatedModel = instantiatedModels.get(args.instantiatedModelId)
         if (!instantiatedModel) {
             return { result: { error: { code: 'instantiated_model_not_found' } } }
@@ -251,15 +251,15 @@ const rpc: {
         }
 
         const complete = { complete: false }
-        const stateProvider = createStateProvider(complete, args.id, sendEventToParent)
+        const weightsProvider = createWeightsProvider(complete, args.id, sendEventToParent)
 
         try {
-            if (typeof instantiated.getModelState !== 'function') {
-                throw `GetModelState: Failed to call getModelState on the instantiated model. Expected the property "getModelState" to be a function, but got ${
-                    instantiated.getModelState === null ? 'null' : typeof instantiated.getModelState
+            if (typeof instantiated.getWeights !== 'function') {
+                throw `GetWeights: Failed to call getWeights on the instantiated model. Expected the property "getWeights" to be a function, but got ${
+                    instantiated.getWeights === null ? 'null' : typeof instantiated.getWeights
                 }`
             }
-            await instantiated.getModelState({ stateProvider })
+            await instantiated.getWeights({ weightsProvider })
             complete.complete = true
         } catch (e) {
             return { result: { error: getErrorFromException(e) } }

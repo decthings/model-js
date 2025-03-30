@@ -1,25 +1,25 @@
 import { DecthingsTensor } from '@decthings/api-client'
 import { DataLoader } from './dataloader'
 import { TrainTracker } from './traintracker'
-import { DataLoaderBinary, ModelBinary, StateLoader, StateProvider } from '../exported'
+import { DataLoaderBinary, ModelBinary, WeightsLoader, WeightsProvider } from '../exported'
 
 export * from './dataloader'
 export * from './traintracker'
 
-export type CreateModelStateFn = (options: {
+export type InitializeWeightsFn = (options: {
     params: Map<string, DataLoader>
-    stateProvider: StateProvider
+    weightsProvider: WeightsProvider
     otherModels: Map<
         string,
         {
             mountPath: string
-            state: Map<string, StateLoader>
+            weights: Map<string, WeightsLoader>
         }
     >
 }) => Promise<void> | void
 
 export type InstantiateModelFn = (options: {
-    state: Map<string, StateLoader>
+    weights: Map<string, WeightsLoader>
     otherModels: Map<string, { mountPath: string }>
 }) => Promise<InstantiatedModel> | InstantiatedModel
 
@@ -29,20 +29,20 @@ export type InstantiateModelFn = (options: {
  */
 export interface Model {
     /**
-     * The 'createModelState' function should create a new state, possibly based on some configuration parameters in the
-     * *params* argument. A model state is some binary data which later can be used in evaluate and train. For example,
-     * for a neural network, the createModelState should generate a new randomized set of weights and biases.
+     * The 'initializeWeights' function should create a new set of weights, possibly based on some configuration
+     * parameters in the *params* argument. Weights in this context can be any binary data. For a neural network it is
+     * typically the weights and biases of the network.
      *
-     * Use the *params* argument to read user-provided configuration parameters, and the *stateProvider* argument to
-     * export the state data.
+     * Use the *params* argument to read user-provided configuration parameters, and the *weightsProvider* argument to
+     * export the weights data.
      */
-    createModelState: CreateModelStateFn
+    initializeWeights: InitializeWeightsFn
 
     /**
-     * The 'instantiateModel' function should load the state that previously was created. This happens before train or
+     * The 'instantiateModel' function should load the weights that previously was created. This happens before train or
      * evaluate is called.
      *
-     * Use the *state* argument to load the previously created state, and return an object or class containing the methods
+     * Use the *weights* argument to load the previously created weights, and return an object or class containing the methods
      * `train` and `evaluate`.
      */
     instantiateModel: InstantiateModelFn
@@ -54,7 +54,7 @@ export type EvaluateFn = (options: {
     params: Map<string, DataLoader>
 }) => Promise<{ name: string; data: DecthingsTensor[] }[]> | { name: string; data: DecthingsTensor[] }[]
 
-export type GetModelStateFn = (options: { stateProvider: StateProvider }) => Promise<void> | void
+export type GetWeightsFn = (options: { weightsProvider: WeightsProvider }) => Promise<void> | void
 
 export interface InstantiatedModel {
     /**
@@ -68,20 +68,20 @@ export interface InstantiatedModel {
      */
     evaluate: EvaluateFn
     /**
-     * The 'train' function updates the model state, often by looking at some input data.
+     * The 'train' function updates the model weights, often by looking at some input data.
      *
      * Use the *params* argument to read the input data, and use the *tracker* argument to provide useful information to
-     * the caller, such as progress and metrics. The new model state is not returned from this function - instead, the
-     * 'getModelState' function will later be called, which should return the new, trained state.
+     * the caller, such as progress and metrics. The new model weights are not returned from this function - instead, the
+     * 'getWeights' function will later be called, which should return the new, trained weights.
      */
     train: TrainFn
     /**
-     * The 'getModelState' function is called after the train function has completed. The function should then output the
-     * new, trained state.
+     * The 'getWeights' function is called after the train function has completed. The function should then output the
+     * new, trained weights.
      */
-    getModelState: GetModelStateFn
+    getWeights: GetWeightsFn
     /**
-     * When 'dispose' is called, it means that 'evaluate', 'train' and 'getModelState' will not be called again for this
+     * When 'dispose' is called, it means that 'evaluate', 'train' and 'getWeights' will not be called again for this
      * particular instantiated model. If you have something to clean up, do that here. Otherwise, you can remove this
      * function.
      *
@@ -107,7 +107,7 @@ function createDataLoaderMap(params: Map<string, DataLoaderBinary>): Map<string,
  * import * as decthings from '@decthings/model'
  *
  * export default decthings.makeModel({
- *     createModelState: async (options) => {
+ *     initializeWeights: async (options) => {
  *         ....
  *     },
  *     instantiateModel: async (options) => {
@@ -118,14 +118,14 @@ function createDataLoaderMap(params: Map<string, DataLoaderBinary>): Map<string,
  */
 export function makeModel(model: Model): ModelBinary {
     return {
-        createModelState: ({ params, stateProvider, otherModels }) => {
-            if (!('createModelState' in model)) {
-                throw new Error('The function "instantiateModel" was missing from the model.')
+        initializeWeights: ({ params, weightsProvider, otherModels }) => {
+            if (!('initializeWeights' in model)) {
+                throw new Error('The function "initializeWeights" was missing from the model.')
             }
-            if (typeof model.createModelState !== 'function') {
-                throw new Error(`The property "createModelState" on the model was not a function - found ${typeof model.createModelState}`)
+            if (typeof model.initializeWeights !== 'function') {
+                throw new Error(`The property "initializeWeights" on the model was not a function - found ${typeof model.initializeWeights}`)
             }
-            return model.createModelState({ params: createDataLoaderMap(params), stateProvider, otherModels })
+            return model.initializeWeights({ params: createDataLoaderMap(params), weightsProvider, otherModels })
         },
         instantiateModel: async (options) => {
             if (!('instantiateModel' in model)) {
@@ -190,16 +190,14 @@ export function makeModel(model: Model): ModelBinary {
                     }
                     return instantiated.dispose()
                 },
-                getModelState: (options) => {
-                    if (!('getModelState' in instantiated)) {
-                        throw new Error('The function "getModelState" was missing from the instantiated model.')
+                getWeights: (options) => {
+                    if (!('getWeights' in instantiated)) {
+                        throw new Error('The function "getWeights" was missing from the instantiated model.')
                     }
-                    if (typeof instantiated.getModelState !== 'function') {
-                        throw new Error(
-                            `The property "getModelState" on the instantiated model was not a function - found ${typeof instantiated.getModelState}`
-                        )
+                    if (typeof instantiated.getWeights !== 'function') {
+                        throw new Error(`The property "getWeights" on the instantiated model was not a function - found ${typeof instantiated.getWeights}`)
                     }
-                    return instantiated.getModelState(options)
+                    return instantiated.getWeights(options)
                 },
                 train: ({ params, tracker }) => {
                     if (!('train' in instantiated)) {
